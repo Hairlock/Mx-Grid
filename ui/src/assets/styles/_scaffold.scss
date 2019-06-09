@@ -1,0 +1,31 @@
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: $font-family;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: antialiased;  
+}
+
+h1 {
+    font-size: 2rem;
+}
+
+
+h2 {
+    font-size: 1.8rem;
+}
+
+
+h3 {
+    font-size: 1.6rem;
+}
+
+
+h4 {
+    font-size: 1.3rem;
+}
