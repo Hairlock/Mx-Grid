@@ -1,15 +1,16 @@
-module Home exposing (Model, init, Msg(..), update, view)
+module Home exposing (ExternalMsg(..), Model, Msg(..), init, update, view)
 
 import Array exposing (..)
+import Common exposing (..)
 import Debug exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode exposing (Value)
-import Models exposing (HomeFlowRates, Tariff(..), homeFlowRatesDecoder, tariffToString)
+import Models exposing (HomeFlowRates, tariffToString)
 import RemoteData as RemoteData exposing (..)
-import Round exposing (round)
+import Models exposing (Tariff(..), tariffToPrice)
 
 
 
@@ -19,7 +20,8 @@ import Round exposing (round)
 
 
 type alias Model =
-    { battery : Battery
+    { index : Int
+    , battery : Battery
     , currentFlowRate : Maybe HomeFlowRates
     , devices : List Device
     , drawRate : Float
@@ -32,8 +34,8 @@ type alias Model =
     }
 
 
-init : Array HomeFlowRates -> Model
-init rates =
+init : Int -> Array HomeFlowRates -> Model
+init index rates =
     let
         battery =
             { flowRate = 0
@@ -47,106 +49,76 @@ init rates =
             , price = 10
             }
     in
-    ( { battery = battery
-      , grid = grid
-      , drawRate = 0.0
-      , devices = []
-      , unit = "kWh"
-      , storageMode = Save
-      , homeStatus = NoExcess
-      , tick = 0
-      , indexedHomeFlowRates = rates
-      , currentFlowRate = Array.get 0 rates
-      }
-    )
-
-
-type alias FlowRate =
-    Float
-
-
-type TickDirection
-    = Forward
-    | Backward
-
-
-type StorageMode
-    = Save
-    | Sell
-
-
-type HomeStatus
-    = HasExcess FlowRate
-    | NoExcess
-
-
-
--- Device
-
-
-type alias Storage =
-    { flowRate : FlowRate
-    , capacity : Float
-    }
-
-
-type DeviceType
-    = WithStorage Storage
-    | OnDemand FlowRate
-
-
-type alias Device =
-    { name : String
-    , flowRate : FlowRate
-    }
-
-
-
--- Battery
-
-
-type alias Battery =
-    { flowRate : FlowRate
-    , maxFlowRate : FlowRate
-    , capacity : Float
-    , charge : Float
-    }
-
-
-type BatteryFlowDirection
-    = Charge
-    | Draw
-
-
-
--- Grid
-
-
-type alias Grid =
-    { draw : FlowRate
-    , price : Float
+    { index = index
+    , battery = battery
+    , grid = grid
+    , drawRate = 0.0
+    , devices = []
+    , unit = "kWh"
+    , storageMode = Save
+    , homeStatus = NoExcess
+    , tick = 0
+    , indexedHomeFlowRates = rates
+    , currentFlowRate = Array.get 0 rates
     }
 
 
 type Msg
-    = HomeFlowRatesTick TickDirection
-    | SelectStorageMode StorageMode
+    = BubbleTick TickDirection
+    | FireTick TickDirection
+    | SelectStorageMode String
+    | GoToGrid
+
+
+type ExternalMsg
+    = None
+    | TriggerTick TickDirection
+    | SetGridView
+    | SendExcessFlow ExcessFlow
 
 
 
 -- UPDATE
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Cmd Msg, ExternalMsg )
 update msg model =
     case msg of
-        HomeFlowRatesTick dir ->
-            ( tick dir model
+        BubbleTick dir ->
+            ( model
             , Cmd.none
+            , TriggerTick dir
+            )
+
+        FireTick dir ->
+            let
+                updated =
+                    tick dir model
+
+                extCmd =
+                    case updated.homeStatus of
+                        HasExcess f ->
+                            let
+                                date =
+                                    model.currentFlowRate
+                                        |> Maybe.map .date
+                                        |> Maybe.withDefault ""
+                            in
+                            SendExcessFlow <| ExcessFlow model.index f date
+
+                        _ ->
+                            None
+            in
+            ( updated
+            , Cmd.none
+            , extCmd
             )
 
         SelectStorageMode mode ->
-            ( {model | storageMode = mode }, Cmd.none )
+            ( { model | storageMode = stringToStorageMode mode }, Cmd.none, None )
+
+        GoToGrid ->
+            ( model, Cmd.none, SetGridView )
 
 
 tick : TickDirection -> Model -> Model
@@ -266,44 +238,49 @@ updateBattery flow tariff model =
 
         -- Excess Flow of positive means sell to the grid, negative means take from the grid
         ( updatedBattery, excessFlow ) =
-            case storageMode of
-                Save ->
-                    case tariff of
-                        Low ->
-                            -- Pull from the grid // charge battery and devices
-                            giveToBattery flow
+            if battery.charge < 0.1 then
+                giveToBattery flow
 
-                        _ ->
-                            takeFromBattery flow
-
-                Sell ->
-                    case tariff of
-                        High ->
-                            -- Pull from battery if needed to keep costs low
-                            if flow < 0 then
+            else
+                case storageMode of
+                    Save ->
+                        case tariff of
+                            High ->
+                                -- Pull from the grid // charge battery and devices
                                 takeFromBattery flow
 
-                            else
+                            _ ->
                                 giveToBattery flow
 
-                        _ ->
-                            takeFromBattery flow
+                    Sell ->
+                        case tariff of
+                            High ->
+                                -- Pull from battery if needed to keep costs low
+                                if flow < 0 then
+                                    takeFromBattery flow
+
+                                else
+                                    giveToBattery flow
+
+                            _ ->
+                                takeFromBattery flow
 
         updatedGrid =
             { grid | draw = excessFlow }
 
         homeStatus =
-            if excessFlow > 0 then
-                NoExcess
+            if excessFlow < 0 then
+                HasExcess excessFlow
 
             else
-                HasExcess excessFlow
+                NoExcess
     in
     { model
         | battery = updatedBattery
         , grid = updatedGrid
         , homeStatus = homeStatus
     }
+
 
 
 -- VIEW
@@ -333,22 +310,24 @@ overviewCard model currentFlowRate =
                 h1 [] [ i [ class "fas fa-times" ] [] ]
 
               else
-                h2 [ onClick <| HomeFlowRatesTick Backward ] [ i [ class "fas fa-chevron-circle-left" ] [] ]
+                h2 [ onClick <| BubbleTick Backward ] [ i [ class "fas fa-chevron-circle-left" ] [] ]
             , h1 [] [ text "Home Usage" ]
-            , h2 [ onClick <| HomeFlowRatesTick Forward ] [ i [ class "fas fa-chevron-circle-right" ] [] ]
+            , h2 [ onClick <| BubbleTick Forward ] [ i [ class "fas fa-chevron-circle-right" ] [] ]
             ]
         , div [ class "header" ]
             [ div []
                 [ h2 [] [ text <| "Tariff: " ++ tariffToString currentFlowRate.tariff ] ]
-            , div [ class "storage-container"] 
-                [ fieldset [] 
-                    [ radio "Save" (model.storageMode == Save) (SelectStorageMode Save)
-                    , radio "Sell" (model.storageMode == Sell) (SelectStorageMode Sell) 
+            , div [ class "storage-container" ]
+                [ select [ onInput SelectStorageMode ]
+                    [ option [ value "Sell", selected (model.storageMode == Sell) ] [ text "Sell" ]
+                    , option [ value "Save", selected (model.storageMode == Save) ] [ text "Save" ]
                     ]
                 ]
+            , div [ onClick GoToGrid ]
+                [ button [] [ i [ class "fas fa-border-all" ] [], text " Back to Grid" ] ]
             ]
         , div [ class "components" ]
-            [ gridCard grid
+            [ gridCard grid currentFlowRate.tariff
             , batteryCard battery
             , solarCard currentFlowRate
             , homeCard currentFlowRate
@@ -383,19 +362,42 @@ componentCard { name, icon, draw } additionalInfo =
         ]
 
 
-gridCard : Grid -> Html Msg
-gridCard { draw } =
-    componentCard { name = "Grid", icon = "plug", draw = draw } Nothing
+gridCard : Grid -> Tariff -> Html Msg
+gridCard { draw, price } tariff =
+    let
+        tariffPrice =
+            tariffToPrice tariff
+
+        profit =
+            tariffPrice * draw
+    in
+    componentCard { name = "Grid", icon = "plug", draw = draw } <|
+        Just <|
+            div [ class "charging" ]
+                (if draw < 0 then
+                    [ h4 [] [ text <| "Tariff:" ++ formatPrice tariffPrice ]
+                    , h4 [] [ text <| "Profit:" ++ formatPrice (0 - profit) ]
+                    ]
+
+                 else
+                    []
+                )
 
 
 batteryCard : Battery -> Html Msg
-batteryCard { flowRate, charge } =
-    componentCard { name = "Battery", icon = "battery-full", draw = flowRate } <|
-        Just <|
-            div [ class "charging" ]
-                [ h4 [] [ text "Charge:" ]
-                , h4 [] [ text <| formatKWH charge ]
-                ]
+batteryCard battery =
+    div [ class "component" ]
+        [ div [ class "icon-wrapper" ]
+            (batteryCapacity battery (Just "Battery"))
+        , div [ class "charging" ]
+            [ h4 [] [ text "Draw:" ]
+            , h4 [] [ text <| formatKWH battery.flowRate ]
+            ]
+        , div [ class "charging" ]
+            [ h4 [] [ text "Charge:" ]
+            , h4 [] [ text <| formatKWH battery.charge ]
+            ]
+        ]
 
 
 homeCard : HomeFlowRates -> Html Msg
@@ -415,26 +417,8 @@ disconnectedCard =
 
 radio : String -> Bool -> Msg -> Html Msg
 radio value isChecked msg =
-  label
-    [ class "radio-label" ]
-    [ input [ type_ "radio", name "font-size", onClick msg, checked isChecked ] []
-    , text value
-    ]
-
-
-
--- Utils
-
-
-pushIf : Bool -> a -> List a -> List a
-pushIf pred thing list =
-    if pred then
-        list ++ [ thing ]
-
-    else
-        list
-
-
-formatKWH : FlowRate -> String
-formatKWH rate =
-    round 2 rate ++ " kWh"
+    label
+        [ class "radio-label" ]
+        [ input [ type_ "radio", name "font-size", onClick msg, checked isChecked ] []
+        , text value
+        ]

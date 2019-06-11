@@ -9,8 +9,8 @@ module.exports.handler = elmServerless.httpApi({
     requestPort: 'requestPort',
     responsePort: 'responsePort',
     interop: {
-        fetchHomeFlowRates: () => {
-            return consumption.slice(0, 1000);
+        fetchHomeFlowRates: ({ page, limit }) => {
+            return consumption.slice(page * limit, (page + 1) * limit);
         }
     }
 });

@@ -1,4 +1,4 @@
-.overview {
+.homes {
     @include flex-center();
     font-size: 2rem;
     margin: 1em;
@@ -11,28 +11,15 @@
         > h2 {
             cursor: pointer;
         }
-
-        > div {
-            width: 32%;
-        }
-
-        > .storage-container {
-            font-size: 1.3rem;
-            width: 50%;
-            
-        }
-        select, button {
-            padding: 0.5em;
-        }
     }
-    
-    > .components {
+
+    > .home-grid {
         @include flex-wrap-evenly();
 
-
-        > .component {
-            @include flex-center();
+        > .home-card {
             @include evenly-spaced-component();
+            
+            cursor: pointer;
 
             > div {
                 margin-right: 0.5em;
@@ -44,6 +31,10 @@
                 justify-content: space-evenly;
                 flex-wrap: wrap;
 
+                .--pull-left {
+                    margin-left: -0.9em;
+                }
+
                 > i {
                     font-size: 2rem;
                     margin-right: 1em;
@@ -54,8 +45,7 @@
                 display: flex;
                 justify-content: space-around;
             }
-    
         }
-
     }
+
 }

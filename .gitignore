@@ -2,3 +2,12 @@ elm-stuff
 node_modules
 .serverless
 .webpack
+/api/PV Data
+/UKPN-LCL-smartmeter-sample.csv
+/Tariffs.xlsx
+/UKPN-LCL-smartmeter-sample.xlsx
+/ui/bin
+/api/PV Data.zip
+/tensor/.cache
+/tensor/dist
+/api/secrets.json

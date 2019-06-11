@@ -7,17 +7,29 @@
   "scripts": {
     "clean": "rm -rf elm-stuff",
     "api": "cd api && serverless offline",
-    "ui": "cd ui && webpack-dev-server --hot --inline"
+    "deploy": "cd api && cross-env NODE_ENV=production serverless deploy --force",
+    "ui": "cd ui && webpack-dev-server --hot --inline",
+    "start": "concurrently \"yarn api\" \"yarn ui\"",
+    "tensor": "cd tensor && parcel serve index.html",
+    "test": "cd api && elm test"
   },
-  "dependencies": {},
+  "dependencies": {
+    "mysql": "^2.17.1",
+    "mysql2": "^1.6.5",
+    "node-json-db": "^0.11.0",
+    "pg": "^7.11.0",
+    "pg-hstore": "^2.3.3",
+    "sequelize": "^5.8.8"
+  },
   "devDependencies": {
     "autoprefixer": "^9.6.0",
     "babel-core": "^6.25.0",
     "babel-loader": "^7.1.1",
     "babel-preset-env": "^1.6.0",
     "co": "^4.6.0",
+    "concurrently": "^4.1.0",
     "copy-webpack-plugin": "^5.0.3",
-    "cross-env": "^3.1.4",
+    "cross-env": "^5.2.0",
     "elm": "^0.18.0",
     "elm-serverless": "^4.0.0",
     "elm-webpack-loader": "^4.3.1",

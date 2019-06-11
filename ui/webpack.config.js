@@ -105,6 +105,7 @@ if (MODE === "development") {
                             options: {
                                 debug: true,
                                 // forceWatch: true,
+                                // comment below to use node modules elm
                                 pathToElm: './bin/elm'
                             }
                         }

@@ -4,9 +4,11 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Models exposing (HomeFlowRates, homeFlowRatesDecoder, homeFlowRatesEncoder)
 import Serverless
-import Serverless.Conn exposing (jsonBody, interop, respond, route, textBody)
+import Serverless.Conn as Conn exposing (jsonBody, interop, respond, route, textBody)
+import Serverless.Conn.Request as Request
 import UrlParser exposing ((</>), s, map, oneOf, top)
-
+import Dict as Dict
+import Result as Result
 
 main : Serverless.Program () () Route Interop Msg
 main =
@@ -30,12 +32,17 @@ main =
 
 
 type Interop
-    = FetchHomeFlowRates
+    = FetchHomeFlowRates Int Int
 
 
 encodeInterop : Interop -> Encode.Value
-encodeInterop _  =
-    Encode.object []
+encodeInterop interop  =
+    case interop of 
+        FetchHomeFlowRates page limit ->
+            Encode.object 
+                [ ("page", Encode.int page )
+                , ("limit", Encode.int limit ) 
+                ]
 
 
 interopDecoder : String -> Maybe (Decoder Msg)
@@ -61,7 +68,26 @@ endpoint conn =
             respond ( 200, textBody "Moixa api" ) conn
 
         GetHomeFlowRates ->
-            interop [ FetchHomeFlowRates ] conn    
+            let
+                (page, limit) =
+                    conn
+                        |> Conn.request
+                        |> (\r ->
+                            let
+                                queryToInt query stringDefault intDefault =
+                                    r
+                                        |> Request.query query
+                                        |> Maybe.withDefault stringDefault
+                                        |> String.toInt
+                                        |> Result.toMaybe 
+                                        |> Maybe.withDefault intDefault
+                            in
+                            ( queryToInt "page" "0" 0
+                            , queryToInt "limit" "499" 499
+                            )
+                        )
+            in
+            interop [ FetchHomeFlowRates page limit ] conn    
 
 
 type Msg
@@ -80,7 +106,7 @@ update msg conn =
             respond ( 200, jsonBody homeFlowRates ) conn
 
 type alias Conn =
-    Serverless.Conn.Conn () () Route Interop
+    Conn.Conn () () Route Interop
 
 
 port requestPort : Serverless.RequestPort msg

@@ -1,22 +1,54 @@
 service: moixa-demo
 
+custom:
+  serverless-offline:
+    dontPrintOutput: true
+  secrets: ${file(secrets.json)}
+
 provider:
   name: aws
   runtime: nodejs8.10
+  environment: 
+    NODE_ENV: ${self:custom.secrets.NODE_ENV}
+    DB_NAME: ${self:custom.secrets.DB_NAME}
+    DB_USER: ${self:custom.secrets.DB_USER}
+    DB_PASSWORD: ${self:custom.secrets.DB_PASSWORD}
+    DB_HOST: ${self:custom.secrets.DB_HOST}
+    DB_PORT: ${self:custom.secrets.DB_PORT}
+  vpc:
+    securityGroupIds:
+      - ${self:custom.secrets.SECURITY_GROUP_ID}
+    subnetIds:
+      - ${self:custom.secrets.SUBNET1_ID}
+      - ${self:custom.secrets.SUBNET2_ID}
+      - ${self:custom.secrets.SUBNET3_ID}
+      - ${self:custom.secrets.SUBNET4_ID}
+      - ${self:custom.secrets.SUBNET5_ID}
+      - ${self:custom.secrets.SUBNET6_ID}
 
 plugins:
   - serverless-webpack
   - serverless-offline
 
-custom:
-  serverless-offline:
-    dontPrintOutput: true
 
 functions:
-  hello:
+  homerates:
     handler: main.handler
+    package: 
+      include: 
+        - consumption.json
     events:
       - http:
           integration: lambda-proxy
-          path: /consumption
+          path: /homerates
           method: GET
+  grid:
+    handler: grid/api.handler
+    package:
+      include:
+          - grid/excess-rates.json
+    events:
+      - http:
+          integration: lambda-proxy
+          path: /grid
+          method: ANY

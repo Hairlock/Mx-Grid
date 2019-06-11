@@ -1,33 +1,16 @@
-module Models exposing (HomeFlowRates, homeFlowRatesEncoder, homeFlowRatesDecoder, Tariff(..), tariffToString)
+module Models exposing (..)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
+
+
 
 type alias HomeFlowRates =
     { date : String
     , demand : Float
     , tariff : Tariff
     , solar : Float
-    }    
-
-type Tariff 
-    = Low
-    | Normal
-    | High
-
-
-tariffEncoder : Tariff -> Encode.Value
-tariffEncoder tariff =
-    case tariff of
-        Low ->
-            Encode.string "Low"
-        
-        Normal ->
-            Encode.string "Normal"
-
-        High ->
-            Encode.string "High"
-    
+    }     
 
 
 homeFlowRatesEncoder : HomeFlowRates -> Encode.Value
@@ -74,3 +57,59 @@ tariffToString t =
         Low ->
             "Low"
 
+
+
+type alias ExcessFlow = 
+    { id : Int
+    , flow : Float
+    , date : String
+    }
+    
+
+excessFlowDecoder : Decoder ExcessFlow
+excessFlowDecoder =
+    Decode.succeed ExcessFlow
+        |> required "id" Decode.int
+        |> required "flow" Decode.float
+        |> required "date" Decode.string
+
+
+excessFlowEncoder : ExcessFlow -> Encode.Value
+excessFlowEncoder { id, flow, date} =
+    Encode.object
+        [ ("id", Encode.int id)
+        , ("flow", Encode.float flow)
+        , ("date", Encode.string date)
+        ]        
+
+
+type Tariff
+    = Low
+    | Normal
+    | High
+
+
+tariffEncoder : Tariff -> Encode.Value
+tariffEncoder tariff =
+    case tariff of
+        Low ->
+            Encode.string "Low"
+
+        Normal ->
+            Encode.string "Normal"
+
+        High ->
+            Encode.string "High"
+
+
+tariffToPrice : Tariff -> Float
+tariffToPrice tariff =
+    case tariff of
+        High ->
+            0.67
+
+        Normal ->
+            0.12
+
+        Low ->
+            0.04

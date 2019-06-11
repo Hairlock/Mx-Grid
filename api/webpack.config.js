@@ -3,6 +3,12 @@ const webpack = require('webpack');
 const slsw = require('serverless-webpack');
 
 const config = {
+    resolve: {
+        alias: {
+            'pg-native': path.join(__dirname, 'aliases/pg-native.js'),
+            'pgpass$': path.join(__dirname, 'aliases/pgpass.js'),
+          }
+    },
     entry: slsw.lib.entries,
     target: 'node', // Ignores built-in modules like path, fs, etc.
 
@@ -30,7 +36,7 @@ if (process.env.NODE_ENV === 'production') {
     });
 
     config.plugins = config.plugins || [];
-    config.plugins.push(new webpack.optimize.UglifyJsPlugin());
+    // config.plugins.push(new webpack.optimize.UglifyJsPlugin());
 }
 
 module.exports = config;

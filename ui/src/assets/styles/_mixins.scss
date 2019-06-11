@@ -3,3 +3,22 @@
     flex-direction: column;
     text-align: center;
 }
+
+@mixin flex-wrap-evenly() {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+}
+
+@mixin evenly-spaced-component() {
+    width: 22vw;
+    height: 30vh;
+    border: 1px solid black;
+    border-radius: 5%;
+    padding-top: 0.5em;
+    margin: 1em;
+
+    > div {
+        margin-right: 0.5em;
+    }
+}
